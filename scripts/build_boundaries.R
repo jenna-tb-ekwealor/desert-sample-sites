@@ -338,8 +338,46 @@ if (nrow(ca_selected) > 0) {
   boundaries <- c(boundaries, list(ca_selected))
 }
 
+boundary_layer_specs <- data.frame(
+  boundary_name = c(
+    "Burns Pinon Ridge Reserve",
+    "Steele/Burnand Anza-Borrego Desert Research Center",
+    "Inyo National Forest",
+    "Piper Mountain Wilderness",
+    "Pipes Canyon Preserve",
+    "Death Valley National Park",
+    "Anza-Borrego Desert State Park"
+  ),
+  boundary_group = c(
+    "UC Nature Reserves",
+    "UC Nature Reserves",
+    "National Forest Service",
+    "Bureau of Land Management",
+    "The Wildlands Conservancy",
+    "National Park Service",
+    "California State Parks"
+  ),
+  boundary_type = c(
+    "UC reserve",
+    "UC reserve",
+    "National forest",
+    "Wilderness",
+    "Conservation land",
+    "National park",
+    "State park"
+  ),
+  stringsAsFactors = FALSE
+)
+
 out <- do.call(rbind, boundaries) |>
   st_make_valid() |>
+  filter(boundary_name %in% boundary_layer_specs$boundary_name) |>
+  mutate(
+    spec_idx = match(boundary_name, boundary_layer_specs$boundary_name),
+    boundary_group = boundary_layer_specs$boundary_group[spec_idx],
+    boundary_type = boundary_layer_specs$boundary_type[spec_idx]
+  ) |>
+  select(-spec_idx) |>
   arrange(boundary_group, boundary_name)
 
 dir.create("data/boundaries", recursive = TRUE, showWarnings = FALSE)
