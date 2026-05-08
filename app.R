@@ -28,10 +28,10 @@ desert_labels <- c(
 desert_order <- names(desert_labels)
 
 color_families <- list(
-  great_basin = c("#d9ecff", "#8ec6ee", "#2d7dbb", "#0b4778"),
-  mojave = c("#d9f0ce", "#8ccc7b", "#2f8d46", "#14532d"),
-  sonoran = c("#ffd9d2", "#f39782", "#d24b35", "#8e211c"),
-  `GB-M_transition` = c("#d7f3ee", "#7bc9bf", "#248f98", "#0f5668")
+  great_basin = c("#acd3fa", "#66b0fa", "#003f7d"),
+  mojave = c("#a6e695", "#51a83b", "#115400"),
+  sonoran = c("#f39782", "#821807"),
+  `GB-M_transition` = c("#47bfaf")
 )
 
 pretty_label <- function(x) {
@@ -138,7 +138,7 @@ sample_data <- readxl::read_excel(data_path, sheet = "metadata") |>
       "Not recorded",
       paste0(scales::comma(`elevation (ft)`), " ft")
     ),
-    county_state = paste(county, state, sep = ", ")
+    county_state = paste(pretty_label(county), state, sep = ", ")
   ) |>
   arrange(factor(desert, levels = desert_order), site_label, sample_ID)
 
@@ -159,8 +159,12 @@ sample_data <- sample_data |>
       "<span class='popup-site'>", htmlEscape(desert_label), " / ", htmlEscape(site_label), "</span>",
       "<dl>",
       "<dt>Date</dt><dd>", htmlEscape(collect_date_label), "</dd>",
-      "<dt>GPS_flag</dt><dd>", htmlEscape(gps_flag_label), "</dd>",
-      "<dt>Location</dt><dd>", htmlEscape(county_state), "</dd>",
+      if_else(
+        is.na(GPS_flag) | trimws(as.character(GPS_flag)) == "",
+        "",
+        paste0("<dt>GPS_flag</dt><dd>", htmlEscape(gps_flag_label), "</dd>")
+      ),
+      "<dt>County</dt><dd>", htmlEscape(county_state), "</dd>",
       "<dt>Coordinates</dt><dd>", sprintf("%.6f, %.6f", lat, lng), "</dd>",
       "<dt>Elevation</dt><dd>", htmlEscape(elevation_label), "</dd>",
       "</dl>",
@@ -238,10 +242,45 @@ empty_boundaries <- function() {
   )
 }
 
+boundary_layer_specs <- data.frame(
+  boundary_name = c(
+    "Burns Pinon Ridge Reserve",
+    "Steele/Burnand Anza-Borrego Desert Research Center",
+    "Inyo National Forest",
+    "Piper Mountain Wilderness",
+    "Pipes Canyon Preserve",
+    "Death Valley National Park",
+    "Anza-Borrego Desert State Park"
+  ),
+  boundary_group = c(
+    "UC Nature Reserves",
+    "UC Nature Reserves",
+    "National Forest Service",
+    "Bureau of Land Management",
+    "The Wildlands Conservancy",
+    "National Park Service",
+    "California State Parks"
+  ),
+  boundary_type = c(
+    "UC reserve",
+    "UC reserve",
+    "National forest",
+    "Wilderness",
+    "Conservation land",
+    "National park",
+    "State park"
+  ),
+  stringsAsFactors = FALSE
+)
+
 boundary_data <- if (file.exists(boundary_path)) {
   sf::st_read(boundary_path, quiet = TRUE) |>
     sf::st_transform(4326) |>
+    filter(boundary_name %in% boundary_layer_specs$boundary_name) |>
     mutate(
+      spec_idx = match(boundary_name, boundary_layer_specs$boundary_name),
+      boundary_group = boundary_layer_specs$boundary_group[spec_idx],
+      boundary_type = boundary_layer_specs$boundary_type[spec_idx],
       dash_array = ifelse(is.na(dash_array), "", dash_array),
       boundary_popup = paste0(
         "<div class='boundary-popup'>",
@@ -253,15 +292,19 @@ boundary_data <- if (file.exists(boundary_path)) {
         "</dl>",
         "</div>"
       )
-    )
+    ) |>
+    select(-spec_idx)
 } else {
   empty_boundaries()
 }
 
 boundary_group_order <- c(
-  "UC reserve boundaries",
-  "Park and public-land boundaries",
-  "Nearby conservation/public lands"
+  "UC Nature Reserves",
+  "National Forest Service",
+  "Bureau of Land Management",
+  "The Wildlands Conservancy",
+  "National Park Service",
+  "California State Parks"
 )
 
 boundary_group_choices <- intersect(boundary_group_order, unique(boundary_data$boundary_group))
