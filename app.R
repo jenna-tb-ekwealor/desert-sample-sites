@@ -30,7 +30,7 @@ desert_order <- names(desert_labels)
 color_families <- list(
   great_basin = c("#acd3fa", "#66b0fa", "#003f7d"),
   mojave = c("#a6e695", "#51a83b", "#115400"),
-  sonoran = c("#f39782", "#821807"),
+  sonoran = c("#db7967", "#c41d02"),
   `GB-M_transition` = c("#4bb4cc")
 )
 
