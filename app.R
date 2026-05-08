@@ -933,7 +933,6 @@ ui <- fluidPage(
         )
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
-      uiOutput("site_filter"),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
@@ -975,28 +974,8 @@ server <- function(input, output, session) {
     }
   })
 
-  output$site_filter <- renderUI({
-    sites <- filtered_by_desert() |>
-      distinct(site_ID, site_label) |>
-      arrange(site_label)
-
-    selectInput(
-      "site",
-      "Site",
-      choices = c("All sites" = "all", setNames(sites$site_ID, sites$site_label)),
-      selected = "all"
-    )
-  })
-
   filtered_samples <- reactive({
-    points <- filtered_by_desert()
-    selected_site <- input$site
-
-    if (!is.null(selected_site) && !identical(selected_site, "all")) {
-      points <- points |> filter(site_ID == selected_site)
-    }
-
-    points
+    filtered_by_desert()
   })
 
   visible_boundaries <- reactive({
@@ -1129,12 +1108,6 @@ server <- function(input, output, session) {
     req(nrow(points) > 0)
     fit_map_to_points(leafletProxy("map"), points)
   }, ignoreInit = FALSE)
-
-  observeEvent(input$site, {
-    points <- filtered_samples()
-    req(nrow(points) > 0)
-    fit_map_to_points(leafletProxy("map"), points)
-  })
 }
 
 shinyApp(ui, server)
