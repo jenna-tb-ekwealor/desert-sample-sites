@@ -952,6 +952,7 @@ ui <- fluidPage(
             choices = boundary_group_choices,
             selected = boundary_group_choices
           ),
+          h2("Boundaries"),
           uiOutput("boundary_summary")
         )
       },
