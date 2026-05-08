@@ -273,6 +273,34 @@ boundary_layer_specs <- data.frame(
   stringsAsFactors = FALSE
 )
 
+boundary_group_styles <- data.frame(
+  boundary_group = c(
+    "UC Nature Reserves",
+    "National Forest Service",
+    "Bureau of Land Management",
+    "The Wildlands Conservancy",
+    "National Park Service",
+    "California State Parks"
+  ),
+  boundary_stroke_color = c(
+    "#FBB13C",
+    "#854D27",
+    "#0B6E4F",
+    "#2B4162",
+    "#700353",
+    "#320D6D"
+  ),
+  boundary_fill_color = c(
+    "#FBB13C",
+    "#854D27",
+    "#0B6E4F",
+    "#2B4162",
+    "#700353",
+    "#320D6D"
+  ),
+  stringsAsFactors = FALSE
+)
+
 boundary_data <- if (file.exists(boundary_path)) {
   sf::st_read(boundary_path, quiet = TRUE) |>
     sf::st_transform(4326) |>
@@ -281,6 +309,9 @@ boundary_data <- if (file.exists(boundary_path)) {
       spec_idx = match(boundary_name, boundary_layer_specs$boundary_name),
       boundary_group = boundary_layer_specs$boundary_group[spec_idx],
       boundary_type = boundary_layer_specs$boundary_type[spec_idx],
+      style_idx = match(boundary_group, boundary_group_styles$boundary_group),
+      stroke_color = boundary_group_styles$boundary_stroke_color[style_idx],
+      fill_color = boundary_group_styles$boundary_fill_color[style_idx],
       dash_array = ifelse(is.na(dash_array), "", dash_array),
       boundary_popup = paste0(
         "<div class='boundary-popup'>",
@@ -293,7 +324,23 @@ boundary_data <- if (file.exists(boundary_path)) {
         "</div>"
       )
     ) |>
-    select(-spec_idx)
+    group_by(
+      boundary_name,
+      boundary_group,
+      boundary_type,
+      source_name,
+      stroke_color,
+      fill_color,
+      weight,
+      dash_array,
+      fill_opacity
+    ) |>
+    summarise(
+      boundary_id = first(boundary_id),
+      boundary_popup = first(boundary_popup),
+      do_union = TRUE,
+      .groups = "drop"
+    )
 } else {
   empty_boundaries()
 }
@@ -305,6 +352,15 @@ boundary_group_order <- c(
   "The Wildlands Conservancy",
   "National Park Service",
   "California State Parks"
+)
+
+boundary_draw_order <- c(
+  "National Forest Service",
+  "Bureau of Land Management",
+  "The Wildlands Conservancy",
+  "National Park Service",
+  "California State Parks",
+  "UC Nature Reserves"
 )
 
 boundary_group_choices <- intersect(boundary_group_order, unique(boundary_data$boundary_group))
@@ -818,7 +874,7 @@ ui <- fluidPage(
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
       uiOutput("site_filter"),
-      checkboxInput("show_labels", "Show sample labels", value = TRUE),
+      # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
           h2("Boundaries"),
@@ -885,7 +941,8 @@ server <- function(input, output, session) {
     }
 
     boundary_data |>
-      filter(boundary_group %in% selected_groups)
+      filter(boundary_group %in% selected_groups) |>
+      arrange(factor(boundary_group, levels = boundary_draw_order), boundary_name)
   })
 
   output$sample_count <- renderText({
