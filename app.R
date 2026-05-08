@@ -12,7 +12,7 @@ boundary_path <- file.path("data", "boundaries", "sample_site_boundaries.geojson
 targeted_path <- file.path("data", "targeted-may2026.csv")
 
 sample_group <- "Samples"
-targeted_group <- "Targeted sampling sites: May 2026"
+targeted_group <- "Proposed sampling locations: May 2026"
 
 null_coalesce <- function(x, y) {
   if (is.null(x)) y else x
@@ -247,6 +247,7 @@ boundary_layer_specs <- data.frame(
     "Burns Pinon Ridge Reserve",
     "Steele/Burnand Anza-Borrego Desert Research Center",
     "Inyo National Forest",
+    "Inyo Mountains Wilderness",
     "Piper Mountain Wilderness",
     "Pipes Canyon Preserve",
     "Death Valley National Park",
@@ -257,6 +258,7 @@ boundary_layer_specs <- data.frame(
     "UC Nature Reserves",
     "National Forest Service",
     "Bureau of Land Management",
+    "Bureau of Land Management",
     "The Wildlands Conservancy",
     "National Park Service",
     "California State Parks"
@@ -265,6 +267,7 @@ boundary_layer_specs <- data.frame(
     "UC reserve",
     "UC reserve",
     "National forest",
+    "Wilderness",
     "Wilderness",
     "Conservation land",
     "National park",
