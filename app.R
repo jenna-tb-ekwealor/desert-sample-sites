@@ -20,7 +20,7 @@ null_coalesce <- function(x, y) {
 
 desert_labels <- c(
   great_basin = "Great Basin",
-  `GB-M_transition` = "Great Basin—Mojave Transition",
+  `GB-M_transition` = "Great Basin–Mojave Transition",
   mojave = "Mojave",
   sonoran = "Anza-Borrego"
 )
@@ -31,7 +31,7 @@ color_families <- list(
   great_basin = c("#acd3fa", "#66b0fa", "#003f7d"),
   mojave = c("#a6e695", "#51a83b", "#115400"),
   sonoran = c("#f39782", "#821807"),
-  `GB-M_transition` = c("#47bfaf")
+  `GB-M_transition` = c("#4bb4cc")
 )
 
 pretty_label <- function(x) {
