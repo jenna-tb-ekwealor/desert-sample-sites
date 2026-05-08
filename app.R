@@ -1062,7 +1062,7 @@ server <- function(input, output, session) {
       addProviderTiles(providers$CartoDB.Positron, group = "Light") |>
       addProviderTiles(providers$Esri.WorldTopoMap, group = "Topographic") |>
       addLayersControl(
-        baseGroups = c("Topographic", "Satellite", "Light"),
+        baseGroups = c("Light", "Satellite", "Topographic"),
         options = layersControlOptions(collapsed = TRUE)
       ) |>
       addScaleBar(position = "bottomleft")
