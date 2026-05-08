@@ -12,7 +12,7 @@ boundary_path <- file.path("data", "boundaries", "sample_site_boundaries.geojson
 targeted_path <- file.path("data", "targeted-may2026.csv")
 
 sample_group <- "Samples"
-targeted_group <- "Proposed sampling locations: May 2026"
+targeted_group <- "Proposed sampling: May 2026"
 
 null_coalesce <- function(x, y) {
   if (is.null(x)) y else x
