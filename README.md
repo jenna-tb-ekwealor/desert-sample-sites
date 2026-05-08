@@ -23,7 +23,7 @@ The map opens with a topographic basemap and also includes satellite imagery and
 
 Targeted May 2026 sampling locations from `data/targeted-may2026.csv` are shown as larger golden yellow stars.
 
-Boundary layers from the local GIS files are prebuilt into `data/boundaries/sample_site_boundaries.geojson`. To rebuild that file from the source KMZ/shapefile downloads, run:
+Boundary layers are loaded at runtime from `data/boundaries/sample_site_boundaries.geojson`. That file is the app-ready cache, so the app does not need the original KMZ/shapefile downloads to run. If you keep a local copy of the boundary builder script and have the source files available, you can regenerate the cache by running:
 
 ```r
 source("scripts/build_boundaries.R")
