@@ -369,16 +369,71 @@ boundary_layer_specs <- data.frame(
   stringsAsFactors = FALSE
 )
 
+boundary_group_styles <- data.frame(
+  boundary_group = c(
+    "UC Nature Reserves",
+    "National Forest Service",
+    "Bureau of Land Management",
+    "The Wildlands Conservancy",
+    "National Park Service",
+    "California State Parks"
+  ),
+  boundary_stroke_color = c(
+    "#FBB13C",
+    "#854D27",
+    "#355834",
+    "#8A95A5",
+    "#700353",
+    "#320D6D"
+  ),
+  boundary_fill_color = c(
+    "#FBB13C",
+    "#854D27",
+    "#355834",
+    "#8A95A5",
+    "#700353",
+    "#320D6D"
+  ),
+  stringsAsFactors = FALSE
+)
+
+boundary_draw_order <- c(
+  "National Forest Service",
+  "Bureau of Land Management",
+  "The Wildlands Conservancy",
+  "National Park Service",
+  "California State Parks",
+  "UC Nature Reserves"
+)
+
 out <- do.call(rbind, boundaries) |>
   st_make_valid() |>
   filter(boundary_name %in% boundary_layer_specs$boundary_name) |>
   mutate(
     spec_idx = match(boundary_name, boundary_layer_specs$boundary_name),
     boundary_group = boundary_layer_specs$boundary_group[spec_idx],
-    boundary_type = boundary_layer_specs$boundary_type[spec_idx]
+    boundary_type = boundary_layer_specs$boundary_type[spec_idx],
+    style_idx = match(boundary_group, boundary_group_styles$boundary_group),
+    stroke_color = boundary_group_styles$boundary_stroke_color[style_idx],
+    fill_color = boundary_group_styles$boundary_fill_color[style_idx]
   ) |>
-  select(-spec_idx) |>
-  arrange(boundary_group, boundary_name)
+  group_by(
+    boundary_name,
+    boundary_group,
+    boundary_type,
+    source_name,
+    stroke_color,
+    fill_color,
+    weight,
+    dash_array,
+    fill_opacity
+  ) |>
+  summarise(
+    boundary_id = first(boundary_id),
+    do_union = TRUE,
+    .groups = "drop"
+  ) |>
+  arrange(factor(boundary_group, levels = boundary_draw_order), boundary_name)
 
 dir.create("data/boundaries", recursive = TRUE, showWarnings = FALSE)
 out_path <- "data/boundaries/sample_site_boundaries.geojson"
