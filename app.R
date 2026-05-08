@@ -9,10 +9,10 @@ library(sf)
 
 data_path <- file.path("data", "sample_001-080_metadata.xlsx")
 boundary_path <- file.path("data", "boundaries", "sample_site_boundaries.geojson")
-targeted_path <- file.path("data", "targeted-may2026.csv")
+targeted_may_path <- file.path("data", "targeted-may2026.csv")
+targeted_june_path <- file.path("data", "targeted-june2026.csv")
 
 sample_group <- "Samples"
-targeted_group <- "Proposed sampling: May 2026"
 
 null_coalesce <- function(x, y) {
   if (is.null(x)) y else x
@@ -95,24 +95,104 @@ read_targeted_csv <- function(path) {
   )
 }
 
-targeted_star_svg <- paste0(
-  "<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'>",
-  "<polygon points='22,2 27.9,15.1 42,16.6 31.5,26.2 34.4,40.2 22,33.1 9.6,40.2 12.5,26.2 2,16.6 16.1,15.1' fill='#f7c948' stroke='#7a4a00' stroke-width='2.4' stroke-linejoin='round'/>",
-  "</svg>"
-)
+make_targeted_star_svg <- function(fill_color, stroke_color) {
+  paste0(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'>",
+    "<polygon points='22,2 27.9,15.1 42,16.6 31.5,26.2 34.4,40.2 22,33.1 9.6,40.2 12.5,26.2 2,16.6 16.1,15.1' fill='",
+    fill_color,
+    "' stroke='",
+    stroke_color,
+    "' stroke-width='2.4' stroke-linejoin='round'/>",
+    "</svg>"
+  )
+}
 
-targeted_star_icon <- makeIcon(
-  iconUrl = paste0(
-    "data:image/svg+xml;charset=UTF-8,",
-    URLencode(targeted_star_svg, reserved = TRUE)
-  ),
-  iconWidth = 38,
-  iconHeight = 38,
-  iconAnchorX = 19,
-  iconAnchorY = 19,
-  popupAnchorX = 0,
-  popupAnchorY = -18
-)
+make_targeted_star_icon <- function(fill_color, stroke_color, icon_size = 30) {
+  makeIcon(
+    iconUrl = paste0(
+      "data:image/svg+xml;charset=UTF-8,",
+      URLencode(make_targeted_star_svg(fill_color, stroke_color), reserved = TRUE)
+    ),
+    iconWidth = icon_size,
+    iconHeight = icon_size,
+    iconAnchorX = icon_size / 2,
+    iconAnchorY = icon_size / 2,
+    popupAnchorX = 0,
+    popupAnchorY = -(icon_size * 0.45)
+  )
+}
+
+build_targeted_layer <- function(path, group_label, fill_color, stroke_color) {
+  empty <- data.frame(
+    lat = numeric(),
+    lng = numeric(),
+    site_label = character(),
+    site_names_html = character(),
+    targeted_count = integer(),
+    marker_label = character(),
+    popup_html = character(),
+    stringsAsFactors = FALSE
+  )
+
+  if (!file.exists(path)) {
+    return(list(
+      group = group_label,
+      fill_color = fill_color,
+      stroke_color = stroke_color,
+      icon = make_targeted_star_icon(fill_color, stroke_color),
+      points = empty
+    ))
+  }
+
+  points <- read_targeted_csv(path) |>
+    mutate(
+      sample_ID = as.character(sample_ID),
+      lat = ifelse(
+        toupper(latitude) == "S",
+        -abs(coordinate_number(lat_coord)),
+        abs(coordinate_number(lat_coord))
+      ),
+      lng = ifelse(
+        toupper(longitude) == "W",
+        -abs(coordinate_number(long_coord)),
+        abs(coordinate_number(long_coord))
+      ),
+      site_label = pretty_label(sample_ID),
+      site_label_html = htmlEscape(site_label)
+    ) |>
+    filter(!is.na(lat), !is.na(lng)) |>
+    group_by(lat, lng) |>
+    summarise(
+      site_label = paste(site_label, collapse = ", "),
+      site_names_html = paste(site_label_html, collapse = "<br>"),
+      targeted_count = n(),
+      .groups = "drop"
+    ) |>
+    mutate(
+      marker_label = ifelse(
+        targeted_count == 1,
+        paste(group_label, site_label, sep = ": "),
+        paste(group_label, paste(targeted_count, "sites"), sep = ": ")
+      ),
+      popup_html = paste0(
+        "<div class='targeted-popup'>",
+        "<strong>", htmlEscape(group_label), "</strong>",
+        "<span class='popup-site'>", site_names_html, "</span>",
+        "<dl>",
+        "<dt>Coordinates</dt><dd>", sprintf("%.6f, %.6f", lat, lng), "</dd>",
+        "</dl>",
+        "</div>"
+      )
+    )
+
+  list(
+    group = group_label,
+    fill_color = fill_color,
+    stroke_color = stroke_color,
+    icon = make_targeted_star_icon(fill_color, stroke_color),
+    points = points
+  )
+}
 
 sample_data <- readxl::read_excel(data_path, sheet = "metadata") |>
   mutate(
@@ -172,58 +252,20 @@ sample_data <- sample_data |>
     )
   )
 
-targeted_data <- if (file.exists(targeted_path)) {
-  read_targeted_csv(targeted_path) |>
-    mutate(
-      sample_ID = as.character(sample_ID),
-      lat = ifelse(
-        toupper(latitude) == "S",
-        -abs(coordinate_number(lat_coord)),
-        abs(coordinate_number(lat_coord))
-      ),
-      lng = ifelse(
-        toupper(longitude) == "W",
-        -abs(coordinate_number(long_coord)),
-        abs(coordinate_number(long_coord))
-      ),
-      site_label = pretty_label(sample_ID),
-      site_label_html = htmlEscape(site_label)
-    ) |>
-    filter(!is.na(lat), !is.na(lng)) |>
-    group_by(lat, lng) |>
-    summarise(
-      site_label = paste(site_label, collapse = ", "),
-      site_names_html = paste(site_label_html, collapse = "<br>"),
-      targeted_count = n(),
-      .groups = "drop"
-    ) |>
-    mutate(
-      marker_label = ifelse(
-        targeted_count == 1,
-        paste(targeted_group, site_label, sep = ": "),
-        paste(targeted_group, paste(targeted_count, "sites"), sep = ": ")
-      ),
-      popup_html = paste0(
-        "<div class='targeted-popup'>",
-        "<strong>", htmlEscape(targeted_group), "</strong>",
-        "<span class='popup-site'>", site_names_html, "</span>",
-        "<dl>",
-        "<dt>Coordinates</dt><dd>", sprintf("%.6f, %.6f", lat, lng), "</dd>",
-        "</dl>",
-        "</div>"
-      )
-    )
-} else {
-  data.frame(
-    lat = numeric(),
-    lng = numeric(),
-    site_label = character(),
-    site_names_html = character(),
-    targeted_count = integer(),
-    marker_label = character(),
-    popup_html = character()
+targeted_layers <- list(
+  build_targeted_layer(
+    targeted_may_path,
+    "Proposed sampling: May 2026",
+    "#f7c948",
+    "#7a4a00"
+  ),
+  build_targeted_layer(
+    targeted_june_path,
+    "Proposed sampling: June 2026",
+    "#DC0073",
+    "#8a004f"
   )
-}
+)
 
 empty_boundaries <- function() {
   sf::st_sf(
@@ -322,7 +364,6 @@ boundary_data <- if (file.exists(boundary_path)) {
         "<dl>",
         "<dt>Type</dt><dd>", htmlEscape(boundary_type), "</dd>",
         "<dt>Layer</dt><dd>", htmlEscape(boundary_group), "</dd>",
-        "<dt>Source</dt><dd>", htmlEscape(source_name), "</dd>",
         "</dl>",
         "</div>"
       )
@@ -374,7 +415,7 @@ desert_choices <- c(
   setNames(desert_order, desert_labels[desert_order])
 )
 
-legend_control <- function(points, targeted_points = targeted_data) {
+legend_control <- function(points, targeted_layers = targeted_layers) {
   key <- points |>
     distinct(desert, desert_label, site_ID, site_label, site_color) |>
     arrange(factor(desert, levels = desert_order), site_label)
@@ -382,15 +423,25 @@ legend_control <- function(points, targeted_points = targeted_data) {
   active_deserts <- intersect(desert_order, unique(key$desert))
   other_deserts <- setdiff(unique(key$desert), active_deserts)
   active_deserts <- c(active_deserts, other_deserts)
-
   tags$div(
     class = "map-legend",
     tags$div(class = "legend-title", "Site"),
-    if (nrow(targeted_points) > 0) {
+    if (length(targeted_layers) > 0) {
       tags$div(
-        class = "legend-target",
-        tags$span(class = "legend-target-star"),
-        tags$span(targeted_group)
+        class = "legend-targets",
+        lapply(targeted_layers, function(layer) {
+          tags$div(
+            class = "legend-target",
+            tags$span(
+              class = "legend-target-star",
+              style = paste0(
+                "background:", layer$fill_color, ";",
+                "box-shadow: inset 0 0 0 1px ", layer$stroke_color, ";"
+              )
+            ),
+            tags$span(layer$group)
+          )
+        })
       )
     },
     lapply(active_deserts, function(desert_name) {
@@ -444,7 +495,8 @@ add_sample_markers <- function(map, points, show_labels) {
     )
 }
 
-add_targeted_markers <- function(map, points) {
+add_targeted_markers <- function(map, layer) {
+  points <- layer$points
   if (nrow(points) == 0) {
     return(map)
   }
@@ -452,10 +504,10 @@ add_targeted_markers <- function(map, points) {
   map |>
     addMarkers(
       data = points,
-      group = targeted_group,
+      group = layer$group,
       lng = ~lng,
       lat = ~lat,
-      icon = targeted_star_icon,
+      icon = layer$icon,
       popup = ~popup_html,
       label = ~marker_label,
       options = markerOptions(
@@ -721,13 +773,18 @@ ui <- fluidPage(
 
       .legend-target {
         align-items: center;
-        border-bottom: 1px solid #dde4d7;
         display: flex;
         gap: 10px;
         font-weight: 750;
         line-height: 1.3;
-        margin-bottom: 9px;
         min-height: 24px;
+      }
+
+      .legend-targets {
+        border-bottom: 1px solid #dde4d7;
+        display: grid;
+        gap: 7px;
+        margin-bottom: 9px;
         padding-bottom: 9px;
       }
 
@@ -735,9 +792,9 @@ ui <- fluidPage(
         background: #f7c948;
         clip-path: polygon(50% 0%, 63% 34%, 99% 36%, 71% 58%, 81% 93%, 50% 74%, 19% 93%, 29% 58%, 1% 36%, 37% 34%);
         display: block;
-        flex: 0 0 22px;
-        height: 22px;
-        width: 22px;
+        flex: 0 0 20px;
+        height: 20px;
+        width: 20px;
       }
 
       .legend-group + .legend-group {
@@ -1026,22 +1083,26 @@ server <- function(input, output, session) {
   observe({
     points <- filtered_samples()
     boundaries <- visible_boundaries()
-    targeted_points <- targeted_data
     req(nrow(points) > 0)
 
     proxy <- leafletProxy("map") |>
       clearGroup(sample_group) |>
-      clearGroup(targeted_group) |>
       clearGroup("Boundaries") |>
       removeControl("siteLegend")
 
+    for (layer in targeted_layers) {
+      proxy <- proxy |> clearGroup(layer$group)
+    }
+
     proxy <- add_boundary_polygons(proxy, boundaries)
     proxy <- add_sample_markers(proxy, points, input$show_labels)
-    proxy <- add_targeted_markers(proxy, targeted_points)
+    for (layer in targeted_layers) {
+      proxy <- add_targeted_markers(proxy, layer)
+    }
 
     proxy <- proxy |>
       addControl(
-        html = legend_control(points, targeted_points),
+        html = legend_control(points, targeted_layers),
         position = "bottomright",
         layerId = "siteLegend"
       )
