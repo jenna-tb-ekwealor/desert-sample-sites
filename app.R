@@ -934,15 +934,6 @@ ui <- fluidPage(
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
       uiOutput("site_filter"),
-      checkboxGroupInput(
-        "sample_layers",
-        "Sample Layers",
-        choices = c(
-          "Existing samples" = "existing",
-          "Proposed sampling" = "proposed"
-        ),
-        selected = c("existing", "proposed")
-      ),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
@@ -956,6 +947,15 @@ ui <- fluidPage(
           uiOutput("boundary_summary")
         )
       },
+      checkboxGroupInput(
+        "sample_layers",
+        "Sample Layers",
+        choices = c(
+          "Existing samples" = "existing",
+          "Proposed sampling" = "proposed"
+        ),
+        selected = c("existing", "proposed")
+      ),
       h2("Samples"),
       div(class = "sample-table-wrap", tableOutput("sample_table"))
     ),
