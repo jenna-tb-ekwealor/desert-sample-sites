@@ -946,7 +946,6 @@ ui <- fluidPage(
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
-          h2("Boundaries"),
           checkboxGroupInput(
             "boundary_groups",
             "Boundary Layers",
