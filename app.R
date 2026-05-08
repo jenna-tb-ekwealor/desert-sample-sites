@@ -12,7 +12,7 @@ boundary_path <- file.path("data", "boundaries", "sample_site_boundaries.geojson
 targeted_may_path <- file.path("data", "targeted-may2026.csv")
 targeted_june_path <- file.path("data", "targeted-june2026.csv")
 
-sample_group <- "Samples"
+sample_group <- "Existing samples"
 
 null_coalesce <- function(x, y) {
   if (is.null(x)) y else x
@@ -107,7 +107,7 @@ make_targeted_star_svg <- function(fill_color, stroke_color) {
   )
 }
 
-make_targeted_star_icon <- function(fill_color, stroke_color, icon_size = 30) {
+make_targeted_star_icon <- function(fill_color, stroke_color, icon_size = 28) {
   makeIcon(
     iconUrl = paste0(
       "data:image/svg+xml;charset=UTF-8,",
@@ -934,6 +934,15 @@ ui <- fluidPage(
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
       uiOutput("site_filter"),
+      checkboxGroupInput(
+        "sample_layers",
+        "Sample Layers",
+        choices = c(
+          "Existing samples" = "existing",
+          "Proposed sampling" = "proposed"
+        ),
+        selected = c("existing", "proposed")
+      ),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
@@ -1068,8 +1077,8 @@ server <- function(input, output, session) {
   output$map <- renderLeaflet({
     leaflet(options = leafletOptions(preferCanvas = TRUE)) |>
       addMapPane("boundaryPane", zIndex = 410) |>
-      addMapPane("samplePane", zIndex = 650) |>
-      addMapPane("targetedPane", zIndex = 700) |>
+      addMapPane("targetedPane", zIndex = 600) |>
+      addMapPane("samplePane", zIndex = 700) |>
       addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") |>
       addProviderTiles(providers$CartoDB.Positron, group = "Light") |>
       addProviderTiles(providers$Esri.WorldTopoMap, group = "Topographic") |>
@@ -1084,6 +1093,9 @@ server <- function(input, output, session) {
     points <- filtered_samples()
     boundaries <- visible_boundaries()
     req(nrow(points) > 0)
+    visible_layers <- null_coalesce(input$sample_layers, c("existing", "proposed"))
+    show_existing_samples <- "existing" %in% visible_layers
+    show_proposed_sampling <- "proposed" %in% visible_layers
 
     proxy <- leafletProxy("map") |>
       clearGroup(sample_group) |>
@@ -1095,9 +1107,13 @@ server <- function(input, output, session) {
     }
 
     proxy <- add_boundary_polygons(proxy, boundaries)
-    proxy <- add_sample_markers(proxy, points, input$show_labels)
-    for (layer in targeted_layers) {
-      proxy <- add_targeted_markers(proxy, layer)
+    if (show_existing_samples) {
+      proxy <- add_sample_markers(proxy, points, input$show_labels)
+    }
+    if (show_proposed_sampling) {
+      for (layer in targeted_layers) {
+        proxy <- add_targeted_markers(proxy, layer)
+      }
     }
 
     proxy <- proxy |>
