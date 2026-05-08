@@ -274,12 +274,15 @@ selected_local_names <- c(
 ca_selected <- california |>
   filter(local_name %in% selected_local_names) |>
   mutate(
-    boundary_name = ifelse(
-      local_name == "Tubb Cyn vicinity",
-      "Tubb Cyn Vicinity",
-      local_name
+    boundary_name = case_when(
+      local_name == "Inyo National Forest" &
+        grepl("Wilderness", designation) ~ "Inyo Mountains Wilderness",
+      local_name == "Tubb Cyn vicinity" ~ "Tubb Cyn Vicinity",
+      TRUE ~ local_name
     ),
     boundary_type = case_when(
+      boundary_name == "Inyo Mountains Wilderness" ~ "Wilderness",
+      boundary_name == "Inyo National Forest" ~ "National forest",
       grepl("Wilderness", local_name) |
         grepl("Wilderness", designation) ~ "Wilderness",
       grepl("National Forest", local_name) ~ "National forest",
@@ -289,7 +292,7 @@ ca_selected <- california |>
       TRUE ~ "Public land"
     )
   ) |>
-  group_by(boundary_name, boundary_type, owner_name, designation) |>
+  group_by(boundary_name, boundary_type, owner_name) |>
   summarise(do_union = TRUE, .groups = "drop")
 
 if (nrow(ca_selected) > 0) {
@@ -343,6 +346,7 @@ boundary_layer_specs <- data.frame(
     "Burns Pinon Ridge Reserve",
     "Steele/Burnand Anza-Borrego Desert Research Center",
     "Inyo National Forest",
+    "Inyo Mountains Wilderness",
     "Piper Mountain Wilderness",
     "Pipes Canyon Preserve",
     "Death Valley National Park",
@@ -353,6 +357,7 @@ boundary_layer_specs <- data.frame(
     "UC Nature Reserves",
     "National Forest Service",
     "Bureau of Land Management",
+    "Bureau of Land Management",
     "The Wildlands Conservancy",
     "National Park Service",
     "California State Parks"
@@ -361,6 +366,7 @@ boundary_layer_specs <- data.frame(
     "UC reserve",
     "UC reserve",
     "National forest",
+    "Wilderness",
     "Wilderness",
     "Conservation land",
     "National park",
