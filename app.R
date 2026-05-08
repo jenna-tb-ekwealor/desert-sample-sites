@@ -20,9 +20,9 @@ null_coalesce <- function(x, y) {
 
 desert_labels <- c(
   great_basin = "Great Basin",
-  `GB-M_transition` = "Great Basin-Mojave Transition",
+  `GB-M_transition` = "Great Basin—Mojave Transition",
   mojave = "Mojave",
-  sonoran = "Anza-Borrego / Sonoran"
+  sonoran = "Anza-Borrego"
 )
 
 desert_order <- names(desert_labels)
