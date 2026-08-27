@@ -4,6 +4,12 @@ library(readxl)
 
 sf_use_s2(FALSE)
 
+# Run this script from the repository root. Raw boundary source files belong in
+# data/boundaries/sources and are only needed when rebuilding the GeoJSON.
+project_root <- normalizePath(getwd(), mustWork = TRUE)
+source_dir <- file.path(project_root, "data", "boundaries", "sources")
+project_file <- function(...) file.path(project_root, ...)
+
 html_unescape <- function(x) {
   x <- gsub("&amp;", "&", x, fixed = TRUE)
   x <- gsub("&#38;", "&", x, fixed = TRUE)
@@ -96,10 +102,10 @@ make_boundary <- function(
 }
 
 required_files <- c(
-  steele_zip = "/Users/jennaekwealor/Downloads/Steele-Burnan Anza Borrego Reserve/Steele_Burnand_A-B_DRC.zip",
-  burns_zip = "/Users/jennaekwealor/Downloads/Burns Pinon Ridge Reserve (14)/Burns_Pinion.zip",
-  irma_kmz = "/Users/jennaekwealor/Downloads/-Other Maps of Interest/IRMA NPS and ca.gov sites.kmz",
-  california_kmz = "/Users/jennaekwealor/Downloads/California.kmz"
+  steele_zip = file.path(source_dir, "Steele_Burnand_A-B_DRC.zip"),
+  burns_zip = file.path(source_dir, "Burns_Pinion.zip"),
+  irma_kmz = file.path(source_dir, "IRMA NPS and ca.gov sites.kmz"),
+  california_kmz = file.path(source_dir, "California.kmz")
 )
 
 missing_files <- required_files[!file.exists(required_files)]
@@ -213,10 +219,10 @@ if (nrow(death_valley) > 0) {
   )
 }
 
-samples <- read_excel("data/sample_001-080_metadata.xlsx", sheet = "metadata") |>
+samples <- read.csv(project_file("data", "garmin_abbey", "aug_10_sample_metadata.csv")) |>
   mutate(
-    lat = ifelse(toupper(latitude) == "S", -abs(lat_coord), abs(lat_coord)),
-    lng = ifelse(toupper(longitude) == "W", -abs(long_coord), abs(long_coord))
+    lat = as.numeric(lat_coord),
+    lng = as.numeric(long_coord)
   )
 
 sample_bbox <- c(
@@ -441,8 +447,9 @@ out <- do.call(rbind, boundaries) |>
   ) |>
   arrange(factor(boundary_group, levels = boundary_draw_order), boundary_name)
 
-dir.create("data/boundaries", recursive = TRUE, showWarnings = FALSE)
-out_path <- "data/boundaries/sample_site_boundaries.geojson"
+out_dir <- project_file("data", "boundaries")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+out_path <- file.path(out_dir, "sample_site_boundaries.geojson")
 if (file.exists(out_path)) {
   unlink(out_path)
 }
