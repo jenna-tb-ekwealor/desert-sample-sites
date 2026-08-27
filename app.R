@@ -7,10 +7,22 @@ library(bslib)
 library(scales)
 library(sf)
 
-data_path <- file.path("data", "sample_001-080_metadata.xlsx")
+data_path <- file.path("data", "sample 001-140 metadata.xlsx")
+garmin_path <- file.path("data", "001-210_garmin_raw.csv")
 boundary_path <- file.path("data", "boundaries", "sample_site_boundaries.geojson")
-targeted_may_path <- file.path("data", "targeted-may2026.csv")
-targeted_june_path <- file.path("data", "targeted-june2026.csv")
+targeted_august_path <- file.path("data", "targeted-august2026.csv")
+carto_key <- Sys.getenv("CARTO_API_KEY")
+targeted_sampling_enabled <- FALSE
+
+species_paths <- file.path(
+  "data",
+  c(
+    "January deep spring id 001-036.xlsx",
+    "February socal id 037-080 .xlsx",
+    "May socal 2026 ID.xlsx",
+    "June 2026 deep spring ID 181-210.xlsx"
+  )
+)
 
 sample_group <- "Existing samples"
 
@@ -62,6 +74,13 @@ coordinate_number <- function(x) {
   as.numeric(gsub("\u2212", "-", as.character(x), fixed = TRUE))
 }
 
+normalize_sample_id <- function(x) {
+  x <- trimws(as.character(x))
+  number <- sub("^0*([0-9]+).*$", "\\1", x)
+  suffix <- sub("^[^0-9]*[0-9]+", "", x)
+  paste0(sprintf("%03d", as.integer(number)), tolower(suffix))
+}
+
 read_targeted_csv <- function(path) {
   bytes <- readBin(path, "raw", n = file.info(path)$size)
   bom <- as.raw(c(0xef, 0xbb, 0xbf))
@@ -93,6 +112,70 @@ read_targeted_csv <- function(path) {
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
+}
+
+read_garmin_waypoints <- function(path) {
+  if (!file.exists(path)) {
+    return(data.frame(sample_ID = character(), garmin_lat = numeric(), garmin_lng = numeric()))
+  }
+
+  lines <- readLines(path, warn = FALSE)
+  wpt_idx <- which(trimws(lines) == "wpt")[[1]]
+  end_idx <- which(seq_along(lines) > wpt_idx & trimws(lines) == "Address")[[1]]
+  waypoint_lines <- lines[(wpt_idx + 1):(end_idx - 1)]
+  header_idx <- which(grepl("^ID,lat,lon,", waypoint_lines))[[1]]
+
+  waypoint_data <- read.csv(
+    text = paste(waypoint_lines[header_idx:length(waypoint_lines)], collapse = "\n"),
+    fill = TRUE,
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+  names(waypoint_data) <- ifelse(
+    is.na(names(waypoint_data)) | names(waypoint_data) == "",
+    paste0("unused_", seq_along(waypoint_data)),
+    names(waypoint_data)
+  )
+
+  waypoints <- waypoint_data |>
+    transmute(
+      garmin_key = sprintf("%03d", as.integer(sub("^\\D*([0-9]+).*$", "\\1", name))),
+      garmin_lat = as.numeric(lat),
+      garmin_lng = as.numeric(lon)
+    ) |>
+    filter(!is.na(garmin_lat), !is.na(garmin_lng), !is.na(as.integer(garmin_key))) |>
+    distinct(garmin_key, .keep_all = TRUE) |>
+    rename(sample_ID = garmin_key)
+
+  waypoints
+}
+
+read_species_ids <- function(paths) {
+  tables <- lapply(paths[file.exists(paths)], function(path) {
+    species_data <- readxl::read_excel(path, sheet = 1)
+    if (!"id" %in% names(species_data)) {
+      return(data.frame(sample_ID = character(), species_ID = character()))
+    }
+
+    species_data |>
+      mutate(
+        sample_ID = normalize_sample_id(sample_number),
+        species_ID = as.character(id)
+      ) |>
+      filter(!is.na(species_ID), trimws(species_ID) != "") |>
+      select(sample_ID, species_ID)
+  })
+
+  if (length(tables) == 0) {
+    return(data.frame(sample_ID = character(), species_ID = character()))
+  }
+
+  bind_rows(tables) |>
+    group_by(sample_ID) |>
+    summarise(
+      species_ID = paste(sort(unique(species_ID)), collapse = "; "),
+      .groups = "drop"
+    )
 }
 
 make_targeted_star_svg <- function(fill_color, stroke_color) {
@@ -194,10 +277,14 @@ build_targeted_layer <- function(path, group_label, fill_color, stroke_color) {
   )
 }
 
+garmin_waypoints <- read_garmin_waypoints(garmin_path)
+species_ids <- read_species_ids(species_paths)
+
 sample_data <- readxl::read_excel(data_path, sheet = "metadata") |>
   mutate(
     desert = as.character(desert),
     site_ID = as.character(site_ID),
+    sample_ID = normalize_sample_id(sample_ID),
     desert_label = ifelse(
       desert %in% names(desert_labels),
       unname(desert_labels[desert]),
@@ -220,7 +307,21 @@ sample_data <- readxl::read_excel(data_path, sheet = "metadata") |>
     ),
     county_state = paste(pretty_label(county), state, sep = ", ")
   ) |>
+  left_join(garmin_waypoints, by = "sample_ID") |>
+  left_join(species_ids, by = "sample_ID") |>
+  mutate(
+    # Garmin coordinates are authoritative; metadata coordinates are retained only as source context.
+    lat = garmin_lat,
+    lng = garmin_lng,
+    species_ID = blank_to_missing(species_ID)
+  ) |>
   arrange(factor(desert, levels = desert_order), site_label, sample_ID)
+
+# IMPORTANT SAMPLE-NUMBER NOTE:
+# June ends at sample 210. When August field samples are added to this metadata,
+# rename June's final sample to 210a and August's first sample to 210b before
+# joining to Garmin data. The suffix preserves the trip distinction even though
+# the Garmin export's numeric waypoint label is 0210.
 
 site_palette <- sample_data |>
   distinct(desert, desert_label, site_ID, site_label) |>
@@ -244,6 +345,11 @@ sample_data <- sample_data |>
         "",
         paste0("<dt>GPS_flag</dt><dd>", htmlEscape(gps_flag_label), "</dd>")
       ),
+      if_else(
+        is.na(species_ID) | trimws(as.character(species_ID)) == "" | species_ID == "Not recorded",
+        "",
+        paste0("<dt>Species ID</dt><dd>", htmlEscape(species_ID), "</dd>")
+      ),
       "<dt>County</dt><dd>", htmlEscape(county_state), "</dd>",
       "<dt>Coordinates</dt><dd>", sprintf("%.6f, %.6f", lat, lng), "</dd>",
       "<dt>Elevation</dt><dd>", htmlEscape(elevation_label), "</dd>",
@@ -254,16 +360,10 @@ sample_data <- sample_data |>
 
 targeted_layers <- list(
   build_targeted_layer(
-    targeted_may_path,
-    "Proposed sampling: May 2026",
-    "#f7c948",
-    "#7a4a00"
-  ),
-  build_targeted_layer(
-    targeted_june_path,
-    "Proposed sampling: June 2026",
-    "#DC0073",
-    "#8a004f"
+    targeted_august_path,
+    "Proposed sampling: August 2026",
+    "#F97316",
+    "#9A3412"
   )
 )
 
@@ -582,6 +682,25 @@ fit_map_to_points <- function(proxy, points, single_zoom = 13) {
       lng2 = max(points$lng) + lng_pad,
       lat2 = max(points$lat) + lat_pad
     )
+}
+
+add_light_basemap <- function(map) {
+  if (!nzchar(carto_key)) {
+    return(map |> addProviderTiles(providers$CartoDB.Positron, group = "Light"))
+  }
+
+  map |> addTiles(
+    urlTemplate = paste0(
+      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=",
+      carto_key
+    ),
+    attribution = paste(
+      "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
+      "&copy; <a href='https://carto.com/attributions'>CARTO</a>"
+    ),
+    group = "Light",
+    options = tileOptions(subdomains = "abcd", maxZoom = 20)
+  )
 }
 
 ui <- fluidPage(
@@ -950,10 +1069,9 @@ ui <- fluidPage(
         "sample_layers",
         "Sample Layers",
         choices = c(
-          "Existing samples" = "existing",
-          "Proposed sampling" = "proposed"
+          "Existing samples" = "existing"
         ),
-        selected = c("existing", "proposed")
+        selected = "existing"
       ),
       h2("Samples"),
       div(class = "sample-table-wrap", tableOutput("sample_table"))
@@ -1059,7 +1177,7 @@ server <- function(input, output, session) {
       addMapPane("targetedPane", zIndex = 600) |>
       addMapPane("samplePane", zIndex = 700) |>
       addProviderTiles(providers$Esri.WorldImagery, group = "Satellite") |>
-      addProviderTiles(providers$CartoDB.Positron, group = "Light") |>
+      add_light_basemap() |>
       addProviderTiles(providers$Esri.WorldTopoMap, group = "Topographic") |>
       addLayersControl(
         baseGroups = c("Light", "Satellite", "Topographic"),
@@ -1072,9 +1190,9 @@ server <- function(input, output, session) {
     points <- filtered_samples()
     boundaries <- visible_boundaries()
     req(nrow(points) > 0)
-    visible_layers <- null_coalesce(input$sample_layers, c("existing", "proposed"))
+    visible_layers <- null_coalesce(input$sample_layers, "existing")
     show_existing_samples <- "existing" %in% visible_layers
-    show_proposed_sampling <- "proposed" %in% visible_layers
+    show_proposed_sampling <- targeted_sampling_enabled && "proposed" %in% visible_layers
 
     proxy <- leafletProxy("map") |>
       clearGroup(sample_group) |>
@@ -1097,7 +1215,10 @@ server <- function(input, output, session) {
 
     proxy <- proxy |>
       addControl(
-        html = legend_control(points, targeted_layers),
+        html = legend_control(
+          points,
+          if (targeted_sampling_enabled) targeted_layers else list()
+        ),
         position = "bottomright",
         layerId = "siteLegend"
       )

@@ -10,9 +10,9 @@ This map contains samples from the Desert Moss Project, proposed sample location
 
 The app includes:
 
-- Existing sample locations from `data/sample_001-080_metadata.xlsx`
-- Proposed May 2026 sample locations from `data/targeted-may2026.csv`
-- Proposed June 2026 sample locations from `data/targeted-june2026.csv`
+- Existing sample locations from `data/sample 001-140 metadata.xlsx`, with coordinates from the raw Garmin export `data/001-210_garmin_raw.csv`
+- Species IDs joined from the January, February, May, and June ID spreadsheets in `data/`
+- Proposed August 2026 sample locations from `data/targeted-august2026.csv`
 - Boundary layers from `data/boundaries/sample_site_boundaries.geojson`
 - Desert and layer filters
 - Leaflet basemaps, popups, labels, and a map legend
@@ -48,9 +48,13 @@ The repository root should contain `app.R` and the `data/` folder.
 
 ```text
 app.R
-data/sample_001-080_metadata.xlsx
-data/targeted-may2026.csv
-data/targeted-june2026.csv
+data/sample 001-140 metadata.xlsx
+data/001-210_garmin_raw.csv
+data/January deep spring id 001-036.xlsx
+data/February socal id 037-080 .xlsx
+data/May socal 2026 ID.xlsx
+data/June 2026 deep spring ID 181-210.xlsx
+data/targeted-august2026.csv
 data/boundaries/sample_site_boundaries.geojson
 ```
 
@@ -59,3 +63,7 @@ data/boundaries/sample_site_boundaries.geojson
 The app-ready boundary file is stored at `data/boundaries/sample_site_boundaries.geojson`. The app does not need the original boundary source files to run locally or on shinyapps.io.
 
 The `scripts/build_boundaries.R` script is a local helper for rebuilding the boundary GeoJSON file when source boundary files are available.
+
+The metadata workbook supplies dates and sample descriptions. Garmin waypoint coordinates replace the metadata coordinates in the app because the Garmin export's dates and times are inaccurate. The app joins those waypoints by sample number and does not use Garmin dates or times. June ends at sample 210; when August field samples are added, the final June sample should be labeled `210a` and the first August sample `210b` to keep the two trips distinct.
+
+The optional CARTO Light basemap reads `CARTO_API_KEY` from the environment. For local use, put `CARTO_API_KEY=your_key_here` in a project-level `.Renviron` file; `.Renviron` is ignored by Git. Do not commit the key. The Topographic and Satellite basemaps do not require this setting.
