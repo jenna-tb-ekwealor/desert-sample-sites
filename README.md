@@ -10,11 +10,12 @@ This map contains samples from the Desert Moss Project, proposed sample location
 
 The app includes:
 
-- Existing sample locations from `data/sample 001-140 metadata.xlsx`, with coordinates from the raw Garmin export `data/001-210_garmin_raw.csv`
+- Existing sample locations from the wrangled Garmin/metadata file `data/garmin_abbey/aug_10_sample_metadata.csv`
 - Species IDs joined from the January, February, May, and June ID spreadsheets in `data/`
 - Proposed August 2026 sample locations from `data/targeted-august2026.csv`
 - Boundary layers from `data/boundaries/sample_site_boundaries.geojson`
 - Desert and layer filters
+- Species filters for `S. ruralis`, `S. caninervis`, and `Other`
 - Leaflet basemaps, popups, labels, and a map legend
 
 ## Run locally
@@ -48,8 +49,9 @@ The repository root should contain `app.R` and the `data/` folder.
 
 ```text
 app.R
-data/sample 001-140 metadata.xlsx
-data/001-210_garmin_raw.csv
+data/garmin_abbey/aug_10_sample_metadata.csv
+data/garmin_abbey/garmin_export.csv
+data/garmin_abbey/sample 001-210 metadata.xlsx
 data/January deep spring id 001-036.xlsx
 data/February socal id 037-080 .xlsx
 data/May socal 2026 ID.xlsx
@@ -64,6 +66,6 @@ The app-ready boundary file is stored at `data/boundaries/sample_site_boundaries
 
 The `scripts/build_boundaries.R` script is a local helper for rebuilding the boundary GeoJSON file when source boundary files are available.
 
-The metadata workbook supplies dates and sample descriptions. Garmin waypoint coordinates replace the metadata coordinates in the app because the Garmin export's dates and times are inaccurate. The app joins those waypoints by sample number and does not use Garmin dates or times. June ends at sample 210; when August field samples are added, the final June sample should be labeled `210a` and the first August sample `210b` to keep the two trips distinct.
+The wrangled sample file combines the metadata workbook with Garmin waypoint coordinates. It supplies dates and sample descriptions from metadata, and coordinates from Garmin; Garmin dates and times are not used. June ends at sample 210; when August field samples are added, the final June sample should be labeled `210a` and the first August sample `210b` to keep the two trips distinct. The local `scripts/01wrangle.R` script contains the same warning before its numeric sample-ID cleaning step.
 
 The optional CARTO Light basemap reads `CARTO_API_KEY` from the environment. For local use, put `CARTO_API_KEY=your_key_here` in a project-level `.Renviron` file; `.Renviron` is ignored by Git. Do not commit the key. The Topographic and Satellite basemaps do not require this setting.

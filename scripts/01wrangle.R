@@ -47,6 +47,11 @@ garmin_clean <- garmin_raw %>%
   arrange(sample_ID) %>%
   mutate(sample_ID = str_pad(sample_ID, width = 3, pad = "0"))
 
+# IMPORTANT SAMPLE-NUMBER NOTE:
+# June ends at sample 210. When August field samples are added, rename June's
+# final sample to 210a and August's first sample to 210b before joining. Keep
+# the suffixes in the metadata so the two trips remain distinct; do not let
+# numeric coercion collapse both records to sample 210.
 
 #missing metadata------
 metadata <- read_excel(

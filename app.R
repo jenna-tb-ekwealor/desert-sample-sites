@@ -7,11 +7,12 @@ library(bslib)
 library(scales)
 library(sf)
 
-data_path <- file.path("data", "sample 001-140 metadata.xlsx")
-garmin_path <- file.path("data", "001-210_garmin_raw.csv")
+sample_data_path <- file.path("data", "garmin_abbey", "aug_10_sample_metadata.csv")
 boundary_path <- file.path("data", "boundaries", "sample_site_boundaries.geojson")
 targeted_august_path <- file.path("data", "targeted-august2026.csv")
-carto_key <- Sys.getenv("CARTO_API_KEY")
+# CARTO is optional: local .Renviron values are used when available, while
+# hosted deployments fall back to the same Light basemap without a hard error.
+carto_key <- trimws(Sys.getenv("CARTO_API_KEY"))
 targeted_sampling_enabled <- FALSE
 
 species_paths <- file.path(
@@ -112,42 +113,6 @@ read_targeted_csv <- function(path) {
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
-}
-
-read_garmin_waypoints <- function(path) {
-  if (!file.exists(path)) {
-    return(data.frame(sample_ID = character(), garmin_lat = numeric(), garmin_lng = numeric()))
-  }
-
-  lines <- readLines(path, warn = FALSE)
-  wpt_idx <- which(trimws(lines) == "wpt")[[1]]
-  end_idx <- which(seq_along(lines) > wpt_idx & trimws(lines) == "Address")[[1]]
-  waypoint_lines <- lines[(wpt_idx + 1):(end_idx - 1)]
-  header_idx <- which(grepl("^ID,lat,lon,", waypoint_lines))[[1]]
-
-  waypoint_data <- read.csv(
-    text = paste(waypoint_lines[header_idx:length(waypoint_lines)], collapse = "\n"),
-    fill = TRUE,
-    check.names = FALSE,
-    stringsAsFactors = FALSE
-  )
-  names(waypoint_data) <- ifelse(
-    is.na(names(waypoint_data)) | names(waypoint_data) == "",
-    paste0("unused_", seq_along(waypoint_data)),
-    names(waypoint_data)
-  )
-
-  waypoints <- waypoint_data |>
-    transmute(
-      garmin_key = sprintf("%03d", as.integer(sub("^\\D*([0-9]+).*$", "\\1", name))),
-      garmin_lat = as.numeric(lat),
-      garmin_lng = as.numeric(lon)
-    ) |>
-    filter(!is.na(garmin_lat), !is.na(garmin_lng), !is.na(as.integer(garmin_key))) |>
-    distinct(garmin_key, .keep_all = TRUE) |>
-    rename(sample_ID = garmin_key)
-
-  waypoints
 }
 
 read_species_ids <- function(paths) {
@@ -277,42 +242,37 @@ build_targeted_layer <- function(path, group_label, fill_color, stroke_color) {
   )
 }
 
-garmin_waypoints <- read_garmin_waypoints(garmin_path)
 species_ids <- read_species_ids(species_paths)
 
-sample_data <- readxl::read_excel(data_path, sheet = "metadata") |>
+sample_data <- read.csv(sample_data_path, stringsAsFactors = FALSE, na.strings = c("NA", ""), check.names = FALSE) |>
   mutate(
     desert = as.character(desert),
-    site_ID = as.character(site_ID),
+    site_ID = as.character(site_id),
     sample_ID = normalize_sample_id(sample_ID),
     desert_label = ifelse(
       desert %in% names(desert_labels),
       unname(desert_labels[desert]),
       pretty_label(desert)
     ),
-    site_label = pretty_label(site_ID),
-    lat = ifelse(toupper(latitude) == "S", -abs(lat_coord), abs(lat_coord)),
-    lng = ifelse(toupper(longitude) == "W", -abs(long_coord), abs(long_coord)),
-    collect_date = as.Date(collect_date),
+    site_label = recode(pretty_label(site_ID), `Wash Burns` = "Wash"),
+    lat = as.numeric(lat_coord),
+    lng = as.numeric(long_coord),
+    collect_date = as.Date(substr(collect_date, 1, 10)),
     collect_date_label = ifelse(
       is.na(collect_date),
       "Not recorded",
       format(collect_date, "%b %d, %Y")
     ),
-    gps_flag_label = blank_to_missing(GPS_flag),
+    gps_flag_label = blank_to_missing(gps_flag),
     elevation_label = ifelse(
-      is.na(`elevation (ft)`),
+      is.na(`elevation(ft)`),
       "Not recorded",
-      paste0(scales::comma(`elevation (ft)`), " ft")
+      paste0(scales::comma(`elevation(ft)`), " ft")
     ),
     county_state = paste(pretty_label(county), state, sep = ", ")
   ) |>
-  left_join(garmin_waypoints, by = "sample_ID") |>
   left_join(species_ids, by = "sample_ID") |>
   mutate(
-    # Garmin coordinates are authoritative; metadata coordinates are retained only as source context.
-    lat = garmin_lat,
-    lng = garmin_lng,
     species_ID = blank_to_missing(species_ID)
   ) |>
   arrange(factor(desert, levels = desert_order), site_label, sample_ID)
@@ -341,7 +301,7 @@ sample_data <- sample_data |>
       "<dl>",
       "<dt>Date</dt><dd>", htmlEscape(collect_date_label), "</dd>",
       if_else(
-        is.na(GPS_flag) | trimws(as.character(GPS_flag)) == "",
+        is.na(gps_flag) | trimws(as.character(gps_flag)) == "",
         "",
         paste0("<dt>GPS_flag</dt><dd>", htmlEscape(gps_flag_label), "</dd>")
       ),
@@ -430,8 +390,8 @@ boundary_group_styles <- data.frame(
   boundary_stroke_color = c(
     "#FBB13C",
     "#854D27",
-    "#0B6E4F",
-    "#2B4162",
+    "#355834",
+    "#8A95A5",
     "#700353",
     "#320D6D"
   ),
@@ -513,6 +473,13 @@ boundary_group_choices <- setNames(boundary_group_choices, boundary_group_choice
 desert_choices <- c(
   "All deserts" = "all",
   setNames(desert_order, desert_labels[desert_order])
+)
+
+species_choices <- c(
+  "All species" = "all",
+  "S. ruralis" = "ruralis",
+  "S. caninervis" = "caninervis",
+  "Other" = "other"
 )
 
 legend_control <- function(points, targeted_layers = targeted_layers) {
@@ -1052,6 +1019,7 @@ ui <- fluidPage(
         )
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
+      selectInput("species", "Species", choices = species_choices, selected = "all"),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
@@ -1065,14 +1033,17 @@ ui <- fluidPage(
           uiOutput("boundary_summary")
         )
       },
-      checkboxGroupInput(
-        "sample_layers",
-        "Sample Layers",
-        choices = c(
-          "Existing samples" = "existing"
-        ),
-        selected = "existing"
-      ),
+      if (targeted_sampling_enabled) {
+        checkboxGroupInput(
+          "sample_layers",
+          "Sample Layers",
+          choices = c(
+            "Existing samples" = "existing",
+            "Proposed sampling" = "proposed"
+          ),
+          selected = c("existing", "proposed")
+        )
+      },
       h2("Samples"),
       div(class = "sample-table-wrap", tableOutput("sample_table"))
     ),
@@ -1092,8 +1063,31 @@ server <- function(input, output, session) {
     }
   })
 
+  filtered_by_species <- reactive({
+    points <- filtered_by_desert()
+    selected_species <- null_coalesce(input$species, "all")
+
+    if (identical(selected_species, "all")) {
+      return(points)
+    }
+
+    species_text <- tolower(ifelse(is.na(points$species_ID), "", points$species_ID))
+    ruralis <- grepl("syntrichia\\s+ruralis", species_text)
+    caninervis <- grepl("syntrichia\\s+caninervis", species_text)
+
+    keep <- switch(
+      selected_species,
+      ruralis = ruralis,
+      caninervis = caninervis,
+      other = !ruralis & !caninervis,
+      rep(TRUE, nrow(points))
+    )
+
+    points[keep, , drop = FALSE]
+  })
+
   filtered_samples <- reactive({
-    filtered_by_desert()
+    filtered_by_species()
   })
 
   visible_boundaries <- reactive({
@@ -1189,7 +1183,6 @@ server <- function(input, output, session) {
   observe({
     points <- filtered_samples()
     boundaries <- visible_boundaries()
-    req(nrow(points) > 0)
     visible_layers <- null_coalesce(input$sample_layers, "existing")
     show_existing_samples <- "existing" %in% visible_layers
     show_proposed_sampling <- targeted_sampling_enabled && "proposed" %in% visible_layers
@@ -1224,8 +1217,8 @@ server <- function(input, output, session) {
       )
   })
 
-  observeEvent(input$desert, {
-    points <- filtered_by_desert()
+  observeEvent(list(input$desert, input$species), {
+    points <- filtered_samples()
     req(nrow(points) > 0)
     fit_map_to_points(leafletProxy("map"), points)
   }, ignoreInit = FALSE)
