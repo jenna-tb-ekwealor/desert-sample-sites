@@ -254,7 +254,7 @@ sample_data <- read.csv(sample_data_path, stringsAsFactors = FALSE, na.strings =
       unname(desert_labels[desert]),
       pretty_label(desert)
     ),
-    site_label = recode(pretty_label(site_ID), `Wash Burns` = "Wash"),
+    # site_label = recode(pretty_label(site_ID), `Wash Burns` = "Wash"),
     lat = as.numeric(lat_coord),
     lng = as.numeric(long_coord),
     collect_date = as.Date(substr(collect_date, 1, 10)),
