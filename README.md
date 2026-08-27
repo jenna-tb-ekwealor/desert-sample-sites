@@ -16,6 +16,7 @@ The app includes:
 - Boundary layers from `data/boundaries/sample_site_boundaries.geojson`
 - Desert and layer filters
 - Species filters for `S. ruralis`, `S. caninervis`, and `Other`
+- Collection-month checkboxes
 - Leaflet basemaps, popups, labels, and a map legend
 
 ## Run locally

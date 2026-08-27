@@ -482,6 +482,11 @@ species_choices <- c(
   "Other" = "other"
 )
 
+month_choices <- setNames(
+  sprintf("%02d", seq_len(12)),
+  month.name
+)
+
 legend_control <- function(points, targeted_layers = targeted_layers) {
   key <- points |>
     distinct(desert, desert_label, site_ID, site_label, site_color) |>
@@ -557,6 +562,31 @@ add_sample_markers <- function(map, points, show_labels) {
           "font-weight" = "600",
           "color" = "#17202a",
           "box-shadow" = "none"
+        )
+      ),
+      clusterOptions = markerClusterOptions(
+        iconCreateFunction = htmlwidgets::JS(
+          "function (cluster) {
+            var markers = cluster.getAllChildMarkers();
+            var counts = {};
+            markers.forEach(function (marker) {
+              var color = marker.options.fillColor || '#2f6878';
+              counts[color] = (counts[color] || 0) + 1;
+            });
+            var colors = Object.keys(counts).sort(function (a, b) {
+              return counts[b] - counts[a];
+            });
+            var background = colors.length === 1
+              ? colors[0]
+              : 'linear-gradient(135deg, ' + colors.slice(0, 4).join(', ') + ')';
+            return L.divIcon({
+              className: 'site-cluster',
+              iconSize: L.point(38, 38),
+              iconAnchor: L.point(19, 19),
+              popupAnchor: L.point(0, -19),
+              html: '<span style=\"background:' + background + '\">' + cluster.getChildCount() + '</span>'
+            });
+          }"
         )
       )
     )
@@ -905,6 +935,29 @@ ui <- fluidPage(
         min-height: 20px;
       }
 
+      .site-cluster {
+        align-items: center;
+        background: transparent;
+        border: 2px solid rgba(255, 255, 255, 0.95);
+        border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(23, 32, 42, 0.35);
+        color: #ffffff;
+        display: flex;
+        font-size: 0.78rem;
+        font-weight: 800;
+        justify-content: center;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+      }
+
+      .site-cluster span {
+        align-items: center;
+        border-radius: 50%;
+        display: flex;
+        height: 34px;
+        justify-content: center;
+        width: 34px;
+      }
+
       .leaflet-popup-content {
         margin: 12px 14px;
       }
@@ -1020,6 +1073,12 @@ ui <- fluidPage(
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
       selectInput("species", "Species", choices = species_choices, selected = "all"),
+      checkboxGroupInput(
+        "months",
+        "Collection month",
+        choices = month_choices,
+        selected = unname(month_choices)
+      ),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
@@ -1086,8 +1145,19 @@ server <- function(input, output, session) {
     points[keep, , drop = FALSE]
   })
 
+  filtered_by_month <- reactive({
+    points <- filtered_by_species()
+    selected_months <- null_coalesce(input$months, unname(month_choices))
+
+    if (length(selected_months) == 0) {
+      return(points[0, , drop = FALSE])
+    }
+
+    points[format(points$collect_date, "%m") %in% selected_months, , drop = FALSE]
+  })
+
   filtered_samples <- reactive({
-    filtered_by_species()
+    filtered_by_month()
   })
 
   visible_boundaries <- reactive({
@@ -1217,7 +1287,7 @@ server <- function(input, output, session) {
       )
   })
 
-  observeEvent(list(input$desert, input$species), {
+  observeEvent(list(input$desert, input$species, input$months), {
     points <- filtered_samples()
     req(nrow(points) > 0)
     fit_map_to_points(leafletProxy("map"), points)
