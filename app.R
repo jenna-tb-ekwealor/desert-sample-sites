@@ -1244,7 +1244,7 @@ server <- function(input, output, session) {
       add_light_basemap() |>
       addProviderTiles(providers$Esri.WorldTopoMap, group = "Topographic") |>
       addLayersControl(
-        baseGroups = c("Light", "Satellite", "Topographic"),
+        baseGroups = c("Topographic", "Satellite", "Light"),
         options = layersControlOptions(collapsed = TRUE)
       ) |>
       addScaleBar(position = "bottomleft")
