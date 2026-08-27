@@ -789,6 +789,18 @@ ui <- fluidPage(
         margin-top: 4px;
       }
 
+      .month-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: -6px;
+      }
+
+      .month-actions .btn {
+        flex: 1;
+        font-size: 0.78rem;
+        padding: 5px 8px;
+      }
+
       .site-list {
         display: grid;
         gap: 8px;
@@ -1079,6 +1091,11 @@ ui <- fluidPage(
         choices = month_choices,
         selected = unname(month_choices)
       ),
+      div(
+        class = "month-actions",
+        actionButton("select_all_months", "Select all", class = "btn-sm"),
+        actionButton("unselect_all_months", "Unselect all", class = "btn-sm")
+      ),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
         tagList(
@@ -1114,6 +1131,14 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  observeEvent(input$select_all_months, {
+    updateCheckboxGroupInput(session, "months", selected = unname(month_choices))
+  })
+
+  observeEvent(input$unselect_all_months, {
+    updateCheckboxGroupInput(session, "months", selected = character())
+  })
+
   filtered_by_desert <- reactive({
     if (identical(input$desert, "all")) {
       sample_data
