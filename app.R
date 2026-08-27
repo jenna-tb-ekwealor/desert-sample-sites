@@ -744,6 +744,36 @@ ui <- fluidPage(
         color: #52605a;
       }
 
+      .sidebar-collapsible {
+        margin-top: 22px;
+      }
+
+      .sidebar-collapsible > summary {
+        color: #52605a;
+        cursor: pointer;
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        list-style-position: outside;
+        text-transform: uppercase;
+      }
+
+      .sidebar-collapsible > summary::marker {
+        color: #2f6878;
+      }
+
+      .sidebar-collapsible[open] > summary {
+        margin-bottom: 10px;
+      }
+
+      .sidebar-collapsible .checkbox-group {
+        margin-bottom: 0;
+      }
+
+      .sidebar-collapsible .sidebar-collapsible {
+        margin-top: 18px;
+      }
+
       .stat-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1085,28 +1115,40 @@ ui <- fluidPage(
       ),
       selectInput("desert", "Desert", choices = desert_choices, selected = "all"),
       selectInput("species", "Species", choices = species_choices, selected = "all"),
-      checkboxGroupInput(
-        "months",
-        "Collection month",
-        choices = month_choices,
-        selected = unname(month_choices)
-      ),
-      div(
-        class = "month-actions",
-        actionButton("select_all_months", "Select all", class = "btn-sm"),
-        actionButton("unselect_all_months", "Unselect all", class = "btn-sm")
+      tags$details(
+        class = "sidebar-collapsible",
+        open = TRUE,
+        tags$summary("Collection month"),
+        checkboxGroupInput(
+          "months",
+          NULL,
+          choices = month_choices,
+          selected = unname(month_choices)
+        ),
+        div(
+          class = "month-actions",
+          actionButton("select_all_months", "Select all", class = "btn-sm"),
+          actionButton("unselect_all_months", "Unselect all", class = "btn-sm")
+        )
       ),
       # checkboxInput("show_labels", "Show sample labels", value = TRUE),
       if (length(boundary_group_choices) > 0) {
-        tagList(
+        tags$details(
+          class = "sidebar-collapsible",
+          open = FALSE,
+          tags$summary("Boundary Layers"),
           checkboxGroupInput(
             "boundary_groups",
-            "Boundary Layers",
+            NULL,
             choices = boundary_group_choices,
             selected = boundary_group_choices
           ),
-          h2("Boundaries"),
-          uiOutput("boundary_summary")
+          tags$details(
+            class = "sidebar-collapsible",
+            open = FALSE,
+            tags$summary("Boundaries"),
+            uiOutput("boundary_summary")
+          )
         )
       },
       if (targeted_sampling_enabled) {
