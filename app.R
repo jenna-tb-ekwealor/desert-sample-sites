@@ -254,7 +254,7 @@ sample_data <- read.csv(sample_data_path, stringsAsFactors = FALSE, na.strings =
       unname(desert_labels[desert]),
       pretty_label(desert)
     ),
-    # site_label = recode(pretty_label(site_ID), `Wash Burns` = "Wash"),
+    site_label = recode(pretty_label(site_ID), `Wash Burns` = "Wash"),
     lat = as.numeric(lat_coord),
     lng = as.numeric(long_coord),
     collect_date = as.Date(substr(collect_date, 1, 10)),
@@ -275,7 +275,7 @@ sample_data <- read.csv(sample_data_path, stringsAsFactors = FALSE, na.strings =
   mutate(
     species_ID = blank_to_missing(species_ID)
   ) |>
-  arrange(factor(desert, levels = desert_order), site_label, sample_ID)
+  arrange(factor(.data$desert, levels = desert_order), .data$sample_ID)
 
 # IMPORTANT SAMPLE-NUMBER NOTE:
 # June ends at sample 210. When August field samples are added to this metadata,
@@ -284,8 +284,9 @@ sample_data <- read.csv(sample_data_path, stringsAsFactors = FALSE, na.strings =
 # the Garmin export's numeric waypoint label is 0210.
 
 site_palette <- sample_data |>
-  distinct(desert, desert_label, site_ID, site_label) |>
-  arrange(factor(desert, levels = desert_order), site_label) |>
+  distinct(desert, desert_label, site_ID) |>
+  mutate(site_label = recode(pretty_label(site_ID), `Wash Burns` = "Wash Burns")) |>
+  arrange(factor(.data$desert, levels = desert_order), .data$site_label) |>
   group_by(desert) |>
   mutate(site_color = family_colors(first(desert), n())) |>
   ungroup()
@@ -660,7 +661,7 @@ add_boundary_polygons <- function(map, boundaries) {
     )
 }
 
-fit_map_to_points <- function(proxy, points, single_zoom = 13) {
+fit_map_to_points <- function(proxy, points, single_zoom = 13, east_padding = 0) {
   if (nrow(points) == 0) {
     return(proxy)
   }
@@ -676,7 +677,7 @@ fit_map_to_points <- function(proxy, points, single_zoom = 13) {
     fitBounds(
       lng1 = min(points$lng) - lng_pad,
       lat1 = min(points$lat) - lat_pad,
-      lng2 = max(points$lng) + lng_pad,
+      lng2 = max(points$lng) + lng_pad + east_padding,
       lat2 = max(points$lat) + lat_pad
     )
 }
@@ -777,20 +778,20 @@ ui <- fluidPage(
       .stat-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-bottom: 18px;
+        gap: 6px;
+        margin-bottom: 10px;
       }
 
       .stat {
         border: 1px solid #dfe5d8;
         border-radius: 8px;
-        padding: 10px 12px;
+        padding: 4px 8px;
         background: #ffffff;
       }
 
       .stat-value {
         display: block;
-        font-size: 1.35rem;
+        font-size: 1rem;
         font-weight: 800;
         line-height: 1.1;
       }
@@ -798,8 +799,8 @@ ui <- fluidPage(
       .stat-label {
         display: block;
         color: #657267;
-        font-size: 0.78rem;
-        margin-top: 4px;
+        font-size: 0.7rem;
+        margin-top: 1px;
       }
 
       .form-label, .control-label {
@@ -1135,7 +1136,7 @@ ui <- fluidPage(
       if (length(boundary_group_choices) > 0) {
         tags$details(
           class = "sidebar-collapsible",
-          open = FALSE,
+          open = NULL,
           tags$summary("Boundary Layers"),
           checkboxGroupInput(
             "boundary_groups",
@@ -1145,7 +1146,7 @@ ui <- fluidPage(
           ),
           tags$details(
             class = "sidebar-collapsible",
-            open = FALSE,
+            open = NULL,
             tags$summary("Boundaries"),
             uiOutput("boundary_summary")
           )
@@ -1173,6 +1174,8 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  initial_map_view <- reactiveVal(TRUE)
+
   observeEvent(input$select_all_months, {
     updateCheckboxGroupInput(session, "months", selected = unname(month_choices))
   })
@@ -1357,7 +1360,12 @@ server <- function(input, output, session) {
   observeEvent(list(input$desert, input$species, input$months), {
     points <- filtered_samples()
     req(nrow(points) > 0)
-    fit_map_to_points(leafletProxy("map"), points)
+    if (isTRUE(initial_map_view())) {
+      fit_map_to_points(leafletProxy("map"), points, east_padding = 1)
+      initial_map_view(FALSE)
+    } else {
+      fit_map_to_points(leafletProxy("map"), points)
+    }
   }, ignoreInit = FALSE)
 }
 
